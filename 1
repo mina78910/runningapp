@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>Running App</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Leaflet -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: sans-serif;
+    }
+    #map {
+      height: 60vh;
+    }
+    .panel {
+      padding: 12px;
+      text-align: center;
+    }
+    .stats {
+      display: flex;
+      justify-content: space-around;
+      margin: 8px 0;
+    }
+    .stat {
+      font-size: 14px;
+    }
+    .value {
+      font-size: 20px;
+      font-weight: bold;
+    }
+    button {
+      font-size: 16px;
+      padding: 8px 16px;
+      margin: 4px;
+    }
+  </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div class="panel">
+  <div class="stats">
+    <div class="stat">
+      時間
+      <div class="value" id="time">00:00</div>
+    </div>
+    <div class="stat">
+      距離 (km)
+      <div class="value" id="distance">0.00</div>
+    </div>
+    <div class="stat">
+      ペース
+      <div class="value" id="pace">--</div>
+    </div>
+  </div>
+
+  <button id="startBtn">スタート</button>
+  <button id="stopBtn" disabled>ストップ</button>
+</div>
+
+<script>
+  // ===== 地図 =====
+  const map = L.map('map').setView([35.681236, 139.767125], 16);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap'
+  }).addTo(map);
+
+  let marker;
+  let polyline = L.polyline([], { color: 'red' }).addTo(map);
+  let path = [];
+
+  // ===== 距離計算（ハバースイン） =====
+  function calcDistance(a, b) {
+    const R = 6371; // km
+    const dLat = (b.lat - a.lat) * Math.PI / 180;
+    const dLng = (b.lng - a.lng) * Math.PI / 180;
+
+    const lat1 = a.lat * Math.PI / 180;
+    const lat2 = b.lat * Math.PI / 180;
+
+    const x =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(lat1) * Math.cos(lat2) *
+      Math.sin(dLng / 2) ** 2;
+
+    return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+  }
+
+  let totalDistance = 0;
+
+  function updateLocation(pos) {
+    const latlng = {
+      lat: pos.coords.latitude,
+      lng: pos.coords.longitude
+    };
+
+    if (path.length > 0) {
+      totalDistance += calcDistance(path[path.length - 1], latlng);
+    }
+
+    path.push(latlng);
+    polyline.addLatLng(latlng);
+
+    if (!marker) {
+      marker = L.marker(latlng).addTo(map);
+    } else {
+      marker.setLatLng(latlng);
+    }
+
+    map.setView(latlng, 16);
+
+    document.getElementById('distance').textContent =
+      totalDistance.toFixed(2);
+  }
+
+  // ===== ストップウォッチ =====
+  let startTime;
+  let timerId;
+  let watchId;
+
+  function updateTime() {
+    const elapsed = Date.now() - startTime;
+    const sec = Math.floor(elapsed / 1000);
+    const min = Math.floor(sec / 60);
+    const s = String(sec % 60).padStart(2, '0');
+
+    document.getElementById('time').textContent =
+      `${String(min).padStart(2, '0')}:${s}`;
+
+    if (totalDistance > 0) {
+      const pace = min / totalDistance;
+      const paceMin = Math.floor(pace);
+      const paceSec = Math.floor((pace - paceMin) * 60);
+      document.getElementById('pace').textContent =
+        `${paceMin}:${String(paceSec).padStart(2, '0')}`;
+    }
+  }
+
+  // ===== ボタン =====
+  document.getElementById('startBtn').onclick = () => {
+    path = [];
+    totalDistance = 0;
+    polyline.setLatLngs([]);
+
+    startTime = Date.now();
+    timerId = setInterval(updateTime, 1000);
+
+    watchId = navigator.geolocation.watchPosition(updateLocation, null, {
+      enableHighAccuracy: true
+    });
+
+    document.getElementById('startBtn').disabled = true;
+    document.getElementById('stopBtn').disabled = false;
+  };
+
+  document.getElementById('stopBtn').onclick = () => {
+    clearInterval(timerId);
+    navigator.geolocation.clearWatch(watchId);
+
+    document.getElementById('startBtn').disabled = false;
+    document.getElementById('stopBtn').disabled = true;
+  };
+</script>
+
+</body>
+</html>
