@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>皇居ラン・タイムシミュレーション</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif; overflow: hidden; }
+        #map { height: 100vh; width: 100vw; z-index: 1; }
+        
+        #ui-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            background-color: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            width: 320px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-sizing: border-box; /* パディングを含めて幅を計算させる（レスポンシブで重要） */
+        }
+
+        h2 { margin: 0 0 15px 0; font-size: 18px; color: #333; border-bottom: 2px solid #007BFF; padding-bottom: 5px; }
+        
+        .input-group { margin-bottom: 10px; }
+        .input-group label { display: block; font-size: 12px; color: #666; margin-bottom: 2px; }
+        .input-group input { width: calc(100% - 16px); padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; width: 100%;}
+        
+        button {
+            width: 100%;
+            padding: 10px;
+            font-size: 14px;
+            font-weight: bold;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 5px;
+            transition: background-color 0.2s;
+        }
+        .btn-add { background-color: #28a745; }
+        .btn-add:hover { background-color: #218838; }
+        .btn-start { background-color: #007BFF; margin-top: 15px; font-size: 16px; padding: 12px;}
+        .btn-start:hover { background-color: #0056b3; }
+        
+        .btn-pause { background-color: #f39c12; margin-top: 10px; font-size: 16px; padding: 12px; display: none; }
+        .btn-pause:hover { background-color: #d68910; }
+        .btn-resume { background-color: #27ae60 !important; }
+        .btn-resume:hover { background-color: #219150 !important; }
+
+        button:disabled { background-color: #cccccc !important; cursor: not-allowed; }
+
+        #runner-list { margin-top: 15px; border-top: 1px solid #eee; padding-top: 10px; }
+        .runner-item { display: flex; align-items: center; margin-bottom: 8px; font-size: 14px; font-weight: bold; }
+        .color-box { width: 15px; height: 15px; border-radius: 50%; margin-right: 10px; border: 1px solid #333; }
+
+        .speed-control { margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee; }
+        .speed-control select { width: 100%; padding: 8px; font-size: 14px; box-sizing: border-box; }
+
+        #timer-container {
+            margin-top: 15px;
+            background: #f8f9fa;
+            padding: 15px 10px;
+            border-radius: 5px;
+            text-align: center;
+            border: 1px solid #ddd;
+        }
+        .timer-label { font-size: 12px; color: #666; margin-bottom: 3px; font-weight: bold; }
+        #simTime { font-size: 24px; font-weight: bold; color: #007BFF; line-height: 1; }
+        #realTime { font-size: 16px; font-weight: bold; color: #555; line-height: 1; }
+
+        .custom-icon {
+            display: flex; justify-content: center; align-items: center;
+            color: white; font-size: 11px; font-weight: bold;
+            border-radius: 50%; border: 2px solid white;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
+            text-shadow: 1px 1px 1px rgba(0,0,0,0.5);
+            white-space: nowrap; overflow: hidden;
+            width: 40px !important; height: 40px !important;
+            margin-left: -20px !important; margin-top: -20px !important;
+        }
+
+        /* =========================================
+           📱 スマホ用レスポンシブ対応 (横幅768px以下)
+           ========================================= */
+        @media (max-width: 768px) {
+            #ui-panel {
+                top: auto; /* 上の固定を解除 */
+                bottom: 0; /* 画面下部に固定 */
+                left: 0;
+                width: 100vw; /* 横幅を画面いっぱいに */
+                max-height: 50vh; /* 高さの最大値を画面の半分（50%）に制限 */
+                border-radius: 20px 20px 0 0; /* 上の角だけを丸くする */
+                padding: 15px;
+                box-shadow: 0 -4px 15px rgba(0,0,0,0.2); /* 影を上向きに変更 */
+            }
+
+            /* Leafletのロゴ（© OpenStreetMap）がパネルに隠れないように上にズラす */
+            .leaflet-control-container .leaflet-bottom {
+                bottom: 50vh !important;
+            }
+
+            /* スマホでは文字やボタンを少し大きくしてタップしやすくする */
+            .btn-start, .btn-pause { padding: 15px; font-size: 18px; }
+            #simTime { font-size: 28px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="map"></div>
+
+    <div id="ui-panel">
+        <h2>🏃‍♂️ ランナー登録</h2>
+        <div class="input-group">
+            <label>名前</label>
+            <input type="text" id="inputName" placeholder="例: Aさん">
+        </div>
+        <div class="input-group">
+            <label>予想タイム (分)</label>
+            <input type="number" id="inputTime" placeholder="例: 25" min="1">
+        </div>
+        <button class="btn-add" id="addRunnerBtn">＋ ランナーを追加</button>
+
+        <div id="runner-list"></div>
+
+        <div class="speed-control">
+            <label>⏱️ 再生速度</label>
+            <select id="speedSelect">
+                <option value="1">等倍速 (リアルタイム)</option>
+                <option value="10">10倍速</option>
+                <option value="50" selected>50倍速</option>
+                <option value="100">100倍速</option>
+                <option value="500">500倍速 (一瞬)</option>
+            </select>
+        </div>
+
+        <button class="btn-start" id="startBtn" disabled>シミュレーション開始</button>
+        <button class="btn-pause" id="pauseBtn">⏸ 一時停止</button>
+        
+        <div id="timer-container">
+            <div class="timer-label">⏱️ シミュレーション経過時間</div>
+            <div id="simTime">00:00:00</div>
+            <div class="timer-label" style="margin-top: 10px;">🕒 現実のスタートからのタイマー</div>
+            <div id="realTime">00:00:00</div>
+        </div>
+    </div>
+
+    <script>
+        // HTMLエスケープ処理（セキュリティ対策）
+        function escapeHTML(str) {
+            return str.replace(/[&<>'"]/g, function(match) {
+                const escapeList = {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    "'": '&#39;',
+                    '"': '&quot;'
+                };
+                return escapeList[match];
+            });
+        }
+
+        const map = L.map('map').setView([35.6784555, 139.7537278], 15);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        const originalRouteCoords = [
+            [35.6779772,139.7558364],[35.6780288,139.755981],[35.6780181,139.7561378],[35.6780483,139.7562996],[35.6780931,139.7564435],
+            [35.6781462,139.756576],[35.6782485,139.7566698],[35.6784449,139.7567892],[35.6786309,139.7569422],[35.678877,139.7570531],
+            [35.6790623,139.7571804],[35.6791695,139.7572232],[35.6793494,139.7573701],[35.6794561,139.7574672],[35.6795696,139.7575612],
+            [35.6797673,139.7576932],[35.6798896,139.7577748],[35.6800183,139.757846],[35.6801434,139.757921],[35.6803251,139.7580426],
+            [35.6804418,139.758136],[35.6805594,139.758213],[35.6806717,139.7583005],[35.6808945,139.7583319],[35.6810203,139.7583933],
+            [35.6811966,139.7585077],[35.6813108,139.7585818],[35.6814251,139.7586555],[35.6816267,139.7587587],[35.6817464,139.7588532],
+            [35.6818691,139.7589272],[35.6819837,139.7590125],[35.6820531,139.7590967],[35.6821647,139.7591577],[35.6822599,139.7592353],
+            [35.6823804,139.7593194],[35.6824981,139.7593971],[35.6826916,139.7595286],[35.6827938,139.7595832],[35.6829447,139.7597241],
+            [35.6830446,139.7596723],[35.683161,139.7597291],[35.683366,139.7597998],[35.6835008,139.7598398],[35.6835683,139.7599185],
+            [35.6837648,139.7600048],[35.6838832,139.7600623],[35.6840019,139.7601267],[35.6841292,139.7601712],[35.6842572,139.7602123],
+            [35.6843881,139.7602622],[35.6845995,139.7603506],[35.6847266,139.7604101],[35.6849117,139.7605276],[35.6850274,139.7606139],
+            [35.6851485,139.7607069],[35.6853,139.76087],[35.6855056,139.7609875],[35.6856882,139.7611192],[35.6858199,139.7611547],
+            [35.6859495,139.7611677],[35.6860822,139.7612107],[35.6862861,139.7613061],[35.6864202,139.7613379],[35.6865595,139.7613558],
+            [35.6866921,139.7613812],[35.6868194,139.7614086],[35.6869517,139.7614235],[35.6870841,139.7614424],[35.6872151,139.7614868],
+            [35.6873454,139.7615025],[35.6874836,139.7614586],[35.6876168,139.7614163],[35.6878063,139.7613771],[35.688031,139.7614683],
+            [35.6881758,139.7614149],[35.6883651,139.761325],[35.6884929,139.7613102],[35.6887166,139.7613631],[35.6888578,139.7613408],
+            [35.6889901,139.7612727],[35.6891172,139.7613403],[35.6893563,139.7610625],[35.689452,139.7609484],[35.6894631,139.7608326],
+            [35.6894717,139.7605596],[35.6894203,139.7604524],[35.6893814,139.7602828],[35.6894754,139.760216],[35.6897089,139.7600479],
+            [35.6899148,139.7599446],[35.6900349,139.7598706],[35.6900951,139.7597525],[35.6901123,139.7595798],[35.6903152,139.759467],
+            [35.6904078,139.7594529],[35.6905124,139.7593563],[35.6905032,139.759234],[35.6903142,139.7586742],[35.6903396,139.7585052],
+            [35.6903377,139.7583511],[35.6903806,139.7580771],[35.6903659,139.757948],[35.6903886,139.7577853],[35.6904091,139.7576383],
+            [35.6904891,139.7574965],[35.6905224,139.7573454],[35.6906124,139.7572162],[35.6906618,139.7570694],[35.6906964,139.756814],
+            [35.6907351,139.7566604],[35.6907825,139.7565294],[35.6909024,139.7564648],[35.690915,139.7563148],[35.6909503,139.7561883],
+            [35.6908396,139.7559504],[35.6905954,139.7558431],[35.6904956,139.7558453],[35.6902815,139.7558006],[35.690246,139.7556526],
+            [35.6901776,139.7553622],[35.6901498,139.755189],[35.6901048,139.7550467],[35.6900845,139.7549203],[35.6900256,139.7547653],
+            [35.6900039,139.754557],[35.6899011,139.7544221],[35.6897502,139.7542162],[35.689705,139.7541065],[35.6897642,139.7539981],
+            [35.6896301,139.7539149],[35.689521,139.7537018],[35.6894172,139.7536127],[35.6893811,139.753484],[35.689321,139.7533569],
+            [35.6892743,139.7532044],[35.6892311,139.7529969],[35.6892256,139.7528416],[35.6892075,139.7527311],[35.6892625,139.7526075],
+            [35.6893156,139.7524757],[35.6895861,139.7520791],[35.6895701,139.7519287],[35.6895251,139.7517598],[35.6895309,139.7515865],
+            [35.6894335,139.7515383],[35.689395,139.7514313],[35.6893926,139.751295],[35.6893405,139.7511874],[35.6892913,139.7510907],
+            [35.6891779,139.7509853],[35.6891716,139.7508535],[35.6890737,139.7506534],[35.6890103,139.7505195],[35.6887568,139.7500319],
+            [35.6886424,139.7497674],[35.6885523,139.7496235],[35.6884817,139.7495224],[35.6884145,139.7492184],[35.6883804,139.7490984],
+            [35.6883122,139.7488004],[35.6882382,139.7486854],[35.6881852,139.7485549],[35.6881275,139.7484617],[35.6880842,139.7483411],
+            [35.6880342,139.7481868],[35.6879935,139.7479373],[35.6880031,139.7477778],[35.6879876,139.7476295],[35.6879781,139.7474924],
+            [35.6879655,139.7473328],[35.6879603,139.747189],[35.6879583,139.7470281],[35.6879337,139.7468865],[35.6879308,139.7467526],
+            [35.6879362,139.74663],[35.6879525,139.7464849],[35.6879741,139.7463706],[35.6879964,139.7460906],[35.6879937,139.7459743],
+            [35.6879814,139.7458014],[35.6879192,139.7456517],[35.6879513,139.7452143],[35.6878464,139.7451739],[35.6877412,139.74513],
+            [35.687627,139.7451182],[35.6875297,139.7451298],[35.6874049,139.745166],[35.6872727,139.7451532],[35.6871543,139.7451013],
+            [35.6870777,139.7449887],[35.6868848,139.7449934],[35.6867571,139.7449476],[35.6866601,139.7448831],[35.6864487,139.7447869],
+            [35.6863235,139.7447524],[35.6862123,139.7446762],[35.6859954,139.7446868],[35.6858698,139.7446471],[35.6857732,139.7446281],
+            [35.6856806,139.7446057],[35.6855564,139.7445617],[35.6854488,139.7445144],[35.6853409,139.7444454],[35.6852456,139.7443655],
+            [35.6851633,139.7442791],[35.6848795,139.7443785],[35.6847424,139.7443549],[35.6846128,139.7443386],[35.6845313,139.7442721],
+            [35.6844262,139.7442233],[35.6843065,139.7441578],[35.6841743,139.7441829],[35.684043,139.7441732],[35.683926,139.7442048],
+            [35.6837945,139.7441931],[35.6836595,139.7441745],[35.6834435,139.7441102],[35.6833069,139.7441421],[35.6831812,139.7441637],
+            [35.6830516,139.7441938],[35.6829251,139.7442517],[35.6828171,139.7443116],[35.6826888,139.7443076],[35.6825584,139.7443413],
+            [35.6824354,139.7443256],[35.6823294,139.7443747],[35.6822442,139.7444623],[35.6821677,139.7445622],[35.6817314,139.7448405],
+            [35.6816193,139.744904],[35.6815017,139.7449581],[35.6813848,139.7450222],[35.6812542,139.74509],[35.6811557,139.7452165],
+            [35.6810434,139.7452518],[35.6809305,139.7453111],[35.6808124,139.7453631],[35.6806975,139.7454226],[35.6805902,139.7454868],
+            [35.6804847,139.7455698],[35.6803734,139.7456521],[35.6802694,139.7457308],[35.6801519,139.7458168],[35.680051,139.745894],
+            [35.6799494,139.7459887],[35.6798813,139.7461061],[35.6798211,139.7462497],[35.6797709,139.7464017],[35.6797369,139.7465587],
+            [35.6797077,139.7467006],[35.6796977,139.7468354],[35.6796572,139.7469642],[35.6795987,139.7470971],[35.6795351,139.7472332],
+            [35.6794567,139.7473558],[35.679362,139.7474627],[35.6792139,139.7476483],[35.6791127,139.7477634],[35.6790145,139.7478683],
+            [35.6789127,139.7479631],[35.6788065,139.7480593],[35.6786994,139.7481608],[35.6786337,139.748239],[35.6785309,139.7483128],
+            [35.6784336,139.7483745],[35.6783352,139.7484701],[35.6782318,139.7485621],[35.6781251,139.7486736],[35.6780273,139.748801],
+            [35.6779254,139.7488909],[35.6778223,139.7489738],[35.6777349,139.7490776],[35.6776494,139.7491996],[35.677551,139.749312],
+            [35.6774832,139.7494501],[35.6774341,139.7496144],[35.6774052,139.7497578],[35.6773805,139.7499244],[35.6773552,139.7500825],
+            [35.6773547,139.7503499],[35.677327,139.7506062],[35.6773195,139.7507637],[35.6773436,139.7509198],[35.6773696,139.7510874],
+            [35.6773919,139.7512452],[35.6774258,139.7513779],[35.6774645,139.7515248],[35.6775036,139.7516924],[35.6775492,139.7518354],
+            [35.6775909,139.7519854],[35.6776266,139.7521487],[35.6776583,139.7523148],[35.6776459,139.7524741],[35.6776826,139.7526388],
+            [35.6777576,139.7527766],[35.6778038,139.7529317],[35.6778749,139.7530588],[35.6778732,139.7531765],[35.6779367,139.7532635],
+            [35.6781506,139.7533883],[35.678352,139.7535666],[35.6784555,139.7537278],[35.6785645,139.7537697],[35.6786109,139.7539209],
+            [35.6786206,139.7540321],[35.6785468,139.7541933],[35.6784785,139.7542994],[35.6784228,139.7544188],[35.6783311,139.7545367],
+            [35.6782775,139.7546467],[35.6782281,139.7547978],[35.6781957,139.7549015],[35.6781493,139.7550024],[35.6780962,139.7551356],
+            [35.6780644,139.7552662],[35.6780404,139.7553744],[35.6779932,139.7554733],[35.6779707,139.7555813],[35.6779397,139.7556992],
+            [35.6778542,139.7557589]
+        ];
+
+        const targetLat = 35.683366;
+        const targetLng = 139.7597998;
+        let startIndex = originalRouteCoords.findIndex(c => c[0] === targetLat && c[1] === targetLng);
+        if (startIndex === -1) startIndex = 0;
+
+        const routeCoords = originalRouteCoords.slice(startIndex).concat(originalRouteCoords.slice(0, startIndex));
+        routeCoords.push(routeCoords[0]);
+
+        L.polyline(routeCoords, {color: '#FF007F', weight: 6, opacity: 0.6}).addTo(map);
+
+        let totalDistance = 0;
+        const segments = [];
+        for (let i = 0; i < routeCoords.length - 1; i++) {
+            const p1 = L.latLng(routeCoords[i]);
+            const p2 = L.latLng(routeCoords[i + 1]);
+            const dist = p1.distanceTo(p2);
+            totalDistance += dist;
+            segments.push({ p1, p2, dist, cumulativeDist: totalDistance });
+        }
+
+        const runners = [];
+        const colorPalette = ['#e74c3c', '#3498db', '#2ecc71', '#f1c40f', '#9b59b6', '#e67e22', '#34495e'];
+        let colorIndex = 0;
+
+        const addRunnerBtn = document.getElementById('addRunnerBtn');
+        const startBtn = document.getElementById('startBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const runnerListDiv = document.getElementById('runner-list');
+
+        addRunnerBtn.addEventListener('click', () => {
+            const rawName = document.getElementById('inputName').value.trim();
+            const time = parseFloat(document.getElementById('inputTime').value);
+
+            if (!rawName || isNaN(time) || time <= 0) {
+                alert("名前と正しいタイム（分）を入力してください。");
+                return;
+            }
+
+            const name = escapeHTML(rawName); 
+
+            const color = colorPalette[colorIndex % colorPalette.length];
+            colorIndex++;
+
+            const customIcon = L.divIcon({
+                className: '',
+                html: `<div class="custom-icon" style="background-color: ${color};">${name.substring(0,3)}</div>`
+            });
+            const marker = L.marker(routeCoords[0], {icon: customIcon}).addTo(map);
+
+            runners.push({ name, timeMins: time, color, marker });
+
+            const div = document.createElement('div');
+            div.className = 'runner-item';
+            div.innerHTML = `<div class="color-box" style="background-color: ${color};"></div> ${name} (${time}分)`;
+            runnerListDiv.appendChild(div);
+
+            document.getElementById('inputName').value = '';
+            document.getElementById('inputTime').value = '';
+
+            startBtn.disabled = false;
+        });
+
+        let isRunning = false;
+        let isPaused = false;
+        let animationFrameId = null; 
+        
+        let lastTimestamp = 0;
+        let simElapsedSec = 0;
+        let realElapsedSec = 0;
+
+        function getCoordAtProgress(progress) {
+            if (progress >= 1) return routeCoords[routeCoords.length - 1];
+            if (progress <= 0) return routeCoords[0];
+
+            const targetDist = totalDistance * progress;
+            let prevDist = 0;
+
+            for (let i = 0; i < segments.length; i++) {
+                if (targetDist <= segments[i].cumulativeDist) {
+                    const ratio = (targetDist - prevDist) / segments[i].dist;
+                    const lat = segments[i].p1.lat + (segments[i].p2.lat - segments[i].p1.lat) * ratio;
+                    const lng = segments[i].p1.lng + (segments[i].p2.lng - segments[i].p1.lng) * ratio;
+                    return [lat, lng];
+                }
+                prevDist = segments[i].cumulativeDist;
+            }
+            return routeCoords[routeCoords.length - 1];
+        }
+
+        function formatTime(totalSeconds) {
+            const h = Math.floor(totalSeconds / 3600);
+            const m = Math.floor((totalSeconds % 3600) / 60);
+            const s = Math.floor(totalSeconds % 60);
+            return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        }
+
+        startBtn.addEventListener('click', () => {
+            if (isRunning) return;
+            isRunning = true;
+            
+            startBtn.style.display = 'none'; 
+            pauseBtn.style.display = 'block'; 
+            addRunnerBtn.disabled = true;
+            
+            lastTimestamp = performance.now();
+            animationFrameId = requestAnimationFrame(animate);
+        });
+
+        pauseBtn.addEventListener('click', () => {
+            if (!isRunning) return;
+
+            isPaused = !isPaused;
+
+            if (isPaused) {
+                cancelAnimationFrame(animationFrameId);
+                pauseBtn.innerText = '▶ 再開';
+                pauseBtn.classList.add('btn-resume');
+            } else {
+                lastTimestamp = performance.now();
+                animationFrameId = requestAnimationFrame(animate);
+                pauseBtn.innerText = '⏸ 一時停止';
+                pauseBtn.classList.remove('btn-resume');
+            }
+        });
+
+        function animate(currentTimestamp) {
+            const deltaTimeSec = (currentTimestamp - lastTimestamp) / 1000;
+            lastTimestamp = currentTimestamp;
+
+            const speedMultiplier = parseFloat(document.getElementById('speedSelect').value);
+            
+            realElapsedSec += deltaTimeSec;
+            simElapsedSec += deltaTimeSec * speedMultiplier;
+            
+            const simElapsedMins = simElapsedSec / 60;
+
+            document.getElementById('simTime').innerText = formatTime(simElapsedSec);
+            document.getElementById('realTime').innerText = formatTime(realElapsedSec);
+
+            let allFinished = true;
+
+            runners.forEach(runner => {
+                let progress = simElapsedMins / runner.timeMins;
+                if (progress < 1) {
+                    allFinished = false;
+                } else {
+                    progress = 1;
+                }
+                const currentPos = getCoordAtProgress(progress);
+                runner.marker.setLatLng(currentPos);
+            });
+
+            if (!allFinished) {
+                animationFrameId = requestAnimationFrame(animate);
+            } else {
+                document.getElementById('simTime').innerText += '\n(全員ゴール!)';
+                
+                pauseBtn.style.display = 'none';
+                startBtn.style.display = 'block';
+                startBtn.innerText = 'リセット (再読込)';
+                startBtn.disabled = false;
+                
+                startBtn.onclick = () => location.reload();
+            }
+        }
+    </script>
+</body>
+</html>
