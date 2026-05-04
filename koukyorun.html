@@ -1,412 +1,238 @@
 <!DOCTYPE html>
 <html lang="ja">
-
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>皇居ラン・タイムシミュレーション</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <style>
-    body,
-    html {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
-      overflow: hidden;
-      background-color: #f0f0f0;
-    }
-
-    #map {
-      height: 100vh;
-      width: 100vw;
-      z-index: 1;
-    }
-
-    /* =========================================
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>皇居ラン・タイムシミュレーション</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif; overflow: hidden; background-color: #f0f0f0;}
+        #map { height: 100vh; width: 100vw; z-index: 1; }
+        
+        /* =========================================
            📝 登録パネル (折りたたみ可能)
            ========================================= */
-    #openMenuBtn {
-      position: absolute;
-      top: 20px;
-      left: 20px;
-      z-index: 1000;
-      background-color: #fff;
-      color: #333;
-      border: 2px solid #007BFF;
-      padding: 10px 20px;
-      border-radius: 30px;
-      font-size: 14px;
-      font-weight: bold;
-      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-      cursor: pointer;
-      display: none;
-      transition: background-color 0.2s;
-    }
+        #openMenuBtn {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            background-color: #fff;
+            color: #333;
+            border: 2px solid #007BFF;
+            padding: 10px 20px;
+            border-radius: 30px;
+            font-size: 14px;
+            font-weight: bold;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            cursor: pointer;
+            display: none;
+            transition: background-color 0.2s;
+        }
+        #openMenuBtn:hover { background-color: #f0f8ff; }
 
-    #openMenuBtn:hover {
-      background-color: #f0f8ff;
-    }
+        #ui-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 1001;
+            background-color: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            width: 320px;
+            max-height: calc(100vh - 120px); 
+            overflow-y: auto;
+            box-sizing: border-box;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s;
+        }
 
-    #ui-panel {
-      position: absolute;
-      top: 20px;
-      left: 20px;
-      z-index: 1001;
-      /* コントロールバーより上に */
-      background-color: rgba(255, 255, 255, 0.95);
-      padding: 20px;
-      border-radius: 10px;
-      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-      width: 320px;
-      max-height: calc(100vh - 120px);
-      /* 下のバーに被らない高さ */
-      overflow-y: auto;
-      box-sizing: border-box;
-      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s;
-    }
+        #closeMenuBtn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: none;
+            border: none;
+            font-size: 20px;
+            color: #999;
+            cursor: pointer;
+            padding: 5px;
+        }
+        #closeMenuBtn:hover { color: #333; }
 
-    #closeMenuBtn {
-      position: absolute;
-      top: 15px;
-      right: 15px;
-      background: none;
-      border: none;
-      font-size: 20px;
-      color: #999;
-      cursor: pointer;
-      padding: 5px;
-    }
+        h2 { margin: 0 0 15px 0; font-size: 18px; color: #333; border-bottom: 2px solid #007BFF; padding-bottom: 5px; padding-right: 30px; }
+        
+        .input-group { margin-bottom: 10px; }
+        .input-group label { display: block; font-size: 12px; color: #666; margin-bottom: 2px; }
+        .input-group input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;}
+        
+        button {
+            width: 100%;
+            padding: 10px;
+            font-size: 14px;
+            font-weight: bold;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .btn-add { background-color: #28a745; margin-top: 5px; }
+        .btn-add:hover { background-color: #218838; }
+        button:disabled { background-color: #cccccc !important; cursor: not-allowed; }
 
-    #closeMenuBtn:hover {
-      color: #333;
-    }
+        #runner-list { margin-top: 15px; border-top: 1px solid #eee; padding-top: 10px; }
+        .runner-item { display: flex; align-items: center; margin-bottom: 8px; font-size: 14px; font-weight: bold; }
+        .color-box { width: 15px; height: 15px; border-radius: 50%; margin-right: 10px; border: 1px solid #333; }
 
-    h2 {
-      margin: 0 0 15px 0;
-      font-size: 18px;
-      color: #333;
-      border-bottom: 2px solid #007BFF;
-      padding-bottom: 5px;
-      padding-right: 30px;
-    }
+        .custom-icon {
+            display: flex; justify-content: center; align-items: center;
+            color: white; font-size: 11px; font-weight: bold;
+            border-radius: 50%; border: 2px solid white;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.5);
+            text-shadow: 1px 1px 1px rgba(0,0,0,0.5);
+            white-space: nowrap; overflow: hidden;
+            width: 40px !important; height: 40px !important;
+            margin-left: -20px !important; margin-top: -20px !important;
+        }
 
-    .input-group {
-      margin-bottom: 10px;
-    }
-
-    .input-group label {
-      display: block;
-      font-size: 12px;
-      color: #666;
-      margin-bottom: 2px;
-    }
-
-    .input-group input {
-      width: 100%;
-      padding: 8px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      box-sizing: border-box;
-    }
-
-    button {
-      width: 100%;
-      padding: 10px;
-      font-size: 14px;
-      font-weight: bold;
-      color: white;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-      transition: background-color 0.2s;
-    }
-
-    .btn-add {
-      background-color: #28a745;
-      margin-top: 5px;
-    }
-
-    .btn-add:hover {
-      background-color: #218838;
-    }
-
-    button:disabled {
-      background-color: #cccccc !important;
-      cursor: not-allowed;
-    }
-
-    #runner-list {
-      margin-top: 15px;
-      border-top: 1px solid #eee;
-      padding-top: 10px;
-    }
-
-    .runner-item {
-      display: flex;
-      align-items: center;
-      margin-bottom: 8px;
-      font-size: 14px;
-      font-weight: bold;
-    }
-
-    .color-box {
-      width: 15px;
-      height: 15px;
-      border-radius: 50%;
-      margin-right: 10px;
-      border: 1px solid #333;
-    }
-
-    .custom-icon {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      color: white;
-      font-size: 11px;
-      font-weight: bold;
-      border-radius: 50%;
-      border: 2px solid white;
-      box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5);
-      text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.5);
-      white-space: nowrap;
-      overflow: hidden;
-      width: 40px !important;
-      height: 40px !important;
-      margin-left: -20px !important;
-      margin-top: -20px !important;
-    }
-
-    /* =========================================
+        /* =========================================
            🎮 コントロールバー (常に画面下部に表示)
            ========================================= */
-    #control-bar {
-      position: absolute;
-      bottom: 30px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 1000;
-      background-color: rgba(255, 255, 255, 0.95);
-      padding: 10px 20px;
-      border-radius: 50px;
-      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-      display: flex;
-      align-items: center;
-      gap: 15px;
-      white-space: nowrap;
-    }
+        #control-bar {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1002; /* 登録パネルより上に設定 */
+            background-color: rgba(255, 255, 255, 0.95);
+            padding: 10px 20px;
+            border-radius: 50px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            white-space: nowrap;
+        }
 
-    .dash-item {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-    }
+        .dash-item { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        .dash-label { font-size: 10px; color: #666; font-weight: bold; margin-bottom: 2px; }
+        
+        #speedSelect { padding: 8px; border-radius: 5px; border: 1px solid #ccc; font-size: 14px; cursor: pointer; }
+        
+        .btn-start { background-color: #007BFF; width: 120px; padding: 12px; font-size: 16px; border-radius: 25px; margin-top: 0; }
+        .btn-start:hover { background-color: #0056b3; }
+        .btn-pause { background-color: #f39c12; width: 120px; padding: 12px; font-size: 16px; border-radius: 25px; display: none; margin-top: 0; }
+        .btn-pause:hover { background-color: #d68910; }
+        .btn-resume { background-color: #27ae60 !important; }
+        .btn-resume:hover { background-color: #219150 !important; }
 
-    .dash-label {
-      font-size: 10px;
-      color: #666;
-      font-weight: bold;
-      margin-bottom: 2px;
-    }
+        .dash-timer { background: #f8f9fa; padding: 5px 15px; border-radius: 20px; border: 1px solid #ddd; min-width: 100px; text-align: center;}
+        #simTime { font-size: 22px; font-weight: bold; color: #007BFF; line-height: 1; margin-bottom: 2px; }
+        #realTime { font-size: 12px; font-weight: bold; color: #888; line-height: 1; }
 
-    #speedSelect {
-      padding: 8px;
-      border-radius: 5px;
-      border: 1px solid #ccc;
-      font-size: 14px;
-      cursor: pointer;
-    }
-
-    .btn-start {
-      background-color: #007BFF;
-      width: 120px;
-      padding: 12px;
-      font-size: 16px;
-      border-radius: 25px;
-    }
-
-    .btn-start:hover {
-      background-color: #0056b3;
-    }
-
-    .btn-pause {
-      background-color: #f39c12;
-      width: 120px;
-      padding: 12px;
-      font-size: 16px;
-      border-radius: 25px;
-      display: none;
-    }
-
-    .btn-pause:hover {
-      background-color: #d68910;
-    }
-
-    .btn-resume {
-      background-color: #27ae60 !important;
-    }
-
-    .btn-resume:hover {
-      background-color: #219150 !important;
-    }
-
-    .dash-timer {
-      background: #f8f9fa;
-      padding: 5px 15px;
-      border-radius: 20px;
-      border: 1px solid #ddd;
-      min-width: 100px;
-      text-align: center;
-    }
-
-    #simTime {
-      font-size: 22px;
-      font-weight: bold;
-      color: #007BFF;
-      line-height: 1;
-      margin-bottom: 2px;
-    }
-
-    #realTime {
-      font-size: 12px;
-      font-weight: bold;
-      color: #888;
-      line-height: 1;
-    }
-
-    /* =========================================
+        /* =========================================
            💻 PC用パネル開閉スタイル
            ========================================= */
-    @media (min-width: 769px) {
-      #ui-panel.hidden {
-        transform: translateX(-150%);
-        opacity: 0;
-        pointer-events: none;
-      }
+        @media (min-width: 769px) {
+            #ui-panel.hidden {
+                transform: translateX(-150%);
+                opacity: 0;
+                pointer-events: none;
+            }
+            #openMenuBtn.show { display: block; }
+        }
 
-      #openMenuBtn.show {
-        display: block;
-      }
-    }
-
-    /* =========================================
+        /* =========================================
            📱 スマホ用レスポンシブ & 開閉スタイル
            ========================================= */
-    @media (max-width: 768px) {
+        @media (max-width: 768px) {
+            #ui-panel {
+                top: auto; 
+                bottom: 100px; /* 【修正1】コントロールバーと被らないように上に浮かせる */
+                left: 2.5vw;
+                width: 95vw; 
+                max-height: 50vh; 
+                border-radius: 15px; /* 全体の角を丸く */
+                padding: 15px;
+            }
+            #ui-panel.hidden {
+                transform: translateY(150%);
+                opacity: 0;
+                pointer-events: none;
+            }
+            
+            #openMenuBtn {
+                top: 15px;
+                left: 15px;
+                padding: 8px 15px;
+            }
+            #openMenuBtn.show { display: block; }
 
-      /* 登録パネルをボトムシート風に */
-      #ui-panel {
-        top: auto;
-        bottom: 0;
-        left: 0;
-        width: 100vw;
-        max-height: 60vh;
-        border-radius: 20px 20px 0 0;
-        padding: 15px;
-      }
+            #control-bar {
+                bottom: 15px;
+                width: 95vw;
+                box-sizing: border-box;
+                padding: 10px;
+                border-radius: 15px;
+                gap: 8px;
+                justify-content: space-around;
+            }
+            
+            .btn-start, .btn-pause { width: 90px; font-size: 14px; padding: 10px; }
+            #simTime { font-size: 18px; }
+            #speedSelect { font-size: 12px; padding: 6px; }
 
-      #ui-panel.hidden {
-        transform: translateY(150%);
-        opacity: 0;
-        pointer-events: none;
-      }
-
-      /* メニューを開くボタンを左下に */
-      #openMenuBtn {
-        top: 20px;
-        left: 15px;
-        padding: 8px 15px;
-      }
-
-      #openMenuBtn.show {
-        display: block;
-      }
-
-      /* コントロールバーをスマホサイズに調整 */
-      #control-bar {
-        bottom: 15px;
-        width: 95vw;
-        box-sizing: border-box;
-        padding: 10px;
-        border-radius: 15px;
-        gap: 8px;
-        justify-content: space-around;
-      }
-
-      .btn-start,
-      .btn-pause {
-        width: 90px;
-        font-size: 14px;
-        padding: 10px;
-      }
-
-      #simTime {
-        font-size: 18px;
-      }
-
-      #speedSelect {
-        font-size: 12px;
-        padding: 6px;
-      }
-
-      /* Leafletのロゴ位置調整 */
-      .leaflet-control-container .leaflet-bottom {
-        bottom: 85px !important;
-      }
-    }
-  </style>
+            .leaflet-control-container .leaflet-bottom { bottom: 85px !important; }
+        }
+    </style>
 </head>
-
 <body>
 
-  <div id="map"></div>
+    <div id="map"></div>
 
-  <button id="openMenuBtn">🏃‍♂️ メニューを開く</button>
+    <button id="openMenuBtn">🏃‍♂️ メニューを開く</button>
 
-  <div id="ui-panel">
-    <button id="closeMenuBtn" title="パネルを閉じる">✖</button>
-    <h2>🏃‍♂️ ランナー登録</h2>
-    <div class="input-group">
-      <label>名前</label>
-      <input type="text" id="inputName" placeholder="例: Aさん">
+    <div id="ui-panel">
+        <button id="closeMenuBtn" title="パネルを閉じる">✖</button>
+        <h2>🏃‍♂️ ランナー登録</h2>
+        <div class="input-group">
+            <label>名前</label>
+            <input type="text" id="inputName" placeholder="例: Aさん">
+        </div>
+        <div class="input-group">
+            <label>予想タイム (分)</label>
+            <input type="number" id="inputTime" placeholder="例: 25" min="1">
+        </div>
+        <button class="btn-add" id="addRunnerBtn">＋ 追加</button>
+        <div id="runner-list"></div>
     </div>
-    <div class="input-group">
-      <label>予想タイム (分)</label>
-      <input type="number" id="inputTime" placeholder="例: 25" min="1">
-    </div>
-    <button class="btn-add" id="addRunnerBtn">＋ 追加</button>
-    <div id="runner-list"></div>
-  </div>
 
-  <div id="control-bar">
-    <div class="dash-item">
-      <div class="dash-label">再生速度</div>
-      <select id="speedSelect">
+    <div id="control-bar">
+        <div class="dash-item">
+            <div class="dash-label">再生速度</div>
+            <select id="speedSelect">
                 <option value="1">等倍速</option>
                 <option value="10">10倍速</option>
                 <option value="50" selected>50倍速</option>
                 <option value="100">100倍速</option>
                 <option value="500">一瞬</option>
             </select>
+        </div>
+        <div class="dash-item">
+            <div class="dash-label">操作</div>
+            <button class="btn-start" id="startBtn" disabled>▶ 開始</button>
+            <button class="btn-pause" id="pauseBtn">⏸ 一時停止</button>
+        </div>
+        <div class="dash-item dash-timer">
+            <div class="dash-label">シミュレーション時間</div>
+            <div id="simTime">00:00:00</div>
+            <div id="realTime">(現実: 00:00:00)</div>
+        </div>
     </div>
-    <div class="dash-item">
-      <div class="dash-label">操作</div>
-      <button class="btn-start" id="startBtn" disabled>▶ 開始</button>
-      <button class="btn-pause" id="pauseBtn">⏸ 一時停止</button>
-    </div>
-    <div class="dash-item dash-timer">
-      <div class="dash-label">シミュレーション時間</div>
-      <div id="simTime">00:00:00</div>
-      <div id="realTime">(現実: 00:00:00)</div>
-    </div>
-  </div>
 
-  <script>
-    // --- 1. パネルの開閉制御 ---
+    <script>
         const uiPanel = document.getElementById('ui-panel');
         const openMenuBtn = document.getElementById('openMenuBtn');
         const closeMenuBtn = document.getElementById('closeMenuBtn');
@@ -422,7 +248,6 @@
         closeMenuBtn.addEventListener('click', togglePanel);
         openMenuBtn.addEventListener('click', togglePanel);
 
-        // --- 2. HTMLエスケープ（セキュリティ） ---
         function escapeHTML(str) {
             return str.replace(/[&<>'"]/g, function(match) {
                 const escapeList = { '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' };
@@ -430,9 +255,8 @@
             });
         }
 
-        // --- 3. マップとルート初期設定 ---
         const map = L.map('map', {zoomControl: false}).setView([35.6784555, 139.7537278], 15);
-        L.control.zoom({ position: 'topright' }).addTo(map); // ズームボタンを右上に移動
+        L.control.zoom({ position: 'topright' }).addTo(map);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
@@ -525,7 +349,6 @@
             segments.push({ p1, p2, dist, cumulativeDist: totalDistance });
         }
 
-        // --- 4. ランナー登録とシミュレーション制御 ---
         const runners = [];
         const colorPalette = ['#e74c3c', '#3498db', '#2ecc71', '#f1c40f', '#9b59b6', '#e67e22', '#34495e'];
         let colorIndex = 0;
@@ -606,7 +429,10 @@
             startBtn.style.display = 'none'; 
             pauseBtn.style.display = 'block'; 
             addRunnerBtn.disabled = true;
-            togglePanel(); // シミュレーション開始時に登録パネルを自動で閉じる
+            
+            // 【修正2】「トグル」ではなく「確実に隠す」処理に変更
+            uiPanel.classList.add('hidden');
+            openMenuBtn.classList.add('show');
             
             lastTimestamp = performance.now();
             animationFrameId = requestAnimationFrame(animate);
@@ -662,7 +488,6 @@
                 startBtn.onclick = () => location.reload();
             }
         }
-  </script>
+    </script>
 </body>
-
 </html>
