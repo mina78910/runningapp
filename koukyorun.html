@@ -105,7 +105,7 @@
             bottom: 30px;
             left: 50%;
             transform: translateX(-50%);
-            z-index: 1002; /* 登録パネルより上に設定 */
+            z-index: 1002;
             background-color: rgba(255, 255, 255, 0.95);
             padding: 10px 20px;
             border-radius: 50px;
@@ -123,10 +123,18 @@
         
         .btn-start { background-color: #007BFF; width: 120px; padding: 12px; font-size: 16px; border-radius: 25px; margin-top: 0; }
         .btn-start:hover { background-color: #0056b3; }
+        
         .btn-pause { background-color: #f39c12; width: 120px; padding: 12px; font-size: 16px; border-radius: 25px; display: none; margin-top: 0; }
         .btn-pause:hover { background-color: #d68910; }
+        
         .btn-resume { background-color: #27ae60 !important; }
         .btn-resume:hover { background-color: #219150 !important; }
+
+        /* 追加: もう一度・リセットボタンのスタイル */
+        .btn-restart { background-color: #17a2b8; width: 100px; padding: 12px; font-size: 14px; border-radius: 25px; display: none; margin-top: 0; }
+        .btn-restart:hover { background-color: #138496; }
+        .btn-reset { background-color: #dc3545; width: 100px; padding: 12px; font-size: 14px; border-radius: 25px; display: none; margin-top: 0; }
+        .btn-reset:hover { background-color: #c82333; }
 
         .dash-timer { background: #f8f9fa; padding: 5px 15px; border-radius: 20px; border: 1px solid #ddd; min-width: 100px; text-align: center;}
         #simTime { font-size: 22px; font-weight: bold; color: #007BFF; line-height: 1; margin-bottom: 2px; }
@@ -150,11 +158,11 @@
         @media (max-width: 768px) {
             #ui-panel {
                 top: auto; 
-                bottom: 100px; /* 【修正1】コントロールバーと被らないように上に浮かせる */
+                bottom: 100px;
                 left: 2.5vw;
                 width: 95vw; 
                 max-height: 50vh; 
-                border-radius: 15px; /* 全体の角を丸く */
+                border-radius: 15px;
                 padding: 15px;
             }
             #ui-panel.hidden {
@@ -180,7 +188,8 @@
                 justify-content: space-around;
             }
             
-            .btn-start, .btn-pause { width: 90px; font-size: 14px; padding: 10px; }
+            /* スマホ時のボタンサイズ調整 */
+            .btn-start, .btn-pause, .btn-restart, .btn-reset { width: 85px; font-size: 13px; padding: 10px; }
             #simTime { font-size: 18px; }
             #speedSelect { font-size: 12px; padding: 6px; }
 
@@ -222,8 +231,12 @@
         </div>
         <div class="dash-item">
             <div class="dash-label">操作</div>
-            <button class="btn-start" id="startBtn" disabled>▶ 開始</button>
-            <button class="btn-pause" id="pauseBtn">⏸ 一時停止</button>
+            <div style="display: flex; gap: 8px;">
+                <button class="btn-start" id="startBtn" disabled>▶ 開始</button>
+                <button class="btn-pause" id="pauseBtn">⏸ 一時停止</button>
+                <button class="btn-restart" id="restartBtn">↻ もう一度</button>
+                <button class="btn-reset" id="resetBtn">🗑 リセット</button>
+            </div>
         </div>
         <div class="dash-item dash-timer">
             <div class="dash-label">シミュレーション時間</div>
@@ -356,6 +369,8 @@
         const addRunnerBtn = document.getElementById('addRunnerBtn');
         const startBtn = document.getElementById('startBtn');
         const pauseBtn = document.getElementById('pauseBtn');
+        const restartBtn = document.getElementById('restartBtn');
+        const resetBtn = document.getElementById('resetBtn');
         const runnerListDiv = document.getElementById('runner-list');
 
         addRunnerBtn.addEventListener('click', () => {
@@ -430,7 +445,6 @@
             pauseBtn.style.display = 'block'; 
             addRunnerBtn.disabled = true;
             
-            // 【修正2】「トグル」ではなく「確実に隠す」処理に変更
             uiPanel.classList.add('hidden');
             openMenuBtn.classList.add('show');
             
@@ -451,6 +465,31 @@
                 pauseBtn.innerText = '⏸ 一時停止';
                 pauseBtn.classList.remove('btn-resume');
             }
+        });
+
+        // 「もう一度」ボタン：状態をリセットしてスタート地点に戻す
+        restartBtn.addEventListener('click', () => {
+            isRunning = false;
+            isPaused = false;
+            simElapsedSec = 0;
+            realElapsedSec = 0;
+            
+            document.getElementById('simTime').innerText = '00:00:00';
+            document.getElementById('realTime').innerText = '(現実: 00:00:00)';
+            
+            runners.forEach(runner => {
+                runner.marker.setLatLng(routeCoords[0]);
+            });
+            
+            restartBtn.style.display = 'none';
+            resetBtn.style.display = 'none';
+            startBtn.style.display = 'block';
+            addRunnerBtn.disabled = false;
+        });
+
+        // 「リセット」ボタン：画面全体を再読み込み（ランナー情報をクリア）
+        resetBtn.addEventListener('click', () => {
+            location.reload();
         });
 
         function animate(currentTimestamp) {
@@ -480,12 +519,12 @@
             if (!allFinished) {
                 animationFrameId = requestAnimationFrame(animate);
             } else {
+                // ゴール時のUI切り替え
                 document.getElementById('simTime').innerText = '全員ゴール!';
                 pauseBtn.style.display = 'none';
-                startBtn.style.display = 'block';
-                startBtn.innerText = '↺ リセット';
-                startBtn.disabled = false;
-                startBtn.onclick = () => location.reload();
+                startBtn.style.display = 'none';
+                restartBtn.style.display = 'block';
+                resetBtn.style.display = 'block';
             }
         }
     </script>
